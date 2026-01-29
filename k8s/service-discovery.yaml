@@ -1,0 +1,169 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gin-demo-api-service
+  namespace: gin-demo
+  labels:
+    app: gin-demo-api
+spec:
+  type: ClusterIP
+  selector:
+    app: gin-demo-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gin-demo-api-headless
+  namespace: gin-demo
+  labels:
+    app: gin-demo-api
+spec:
+  clusterIP: None  # Headless service for service discovery
+  selector:
+    app: gin-demo-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: gin-demo-api-service
+  namespace: gin-demo
+# Endpoints are automatically managed by Kubernetes
+# but can be manually defined for external services
+---
+# Service for Postgres
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: gin-demo
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
+---
+# Service for Redis
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: gin-demo
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+---
+# Service for Kafka
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-service
+  namespace: gin-demo
+  labels:
+    app: kafka
+spec:
+  type: ClusterIP
+  selector:
+    app: kafka
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092
+      protocol: TCP
+---
+# Consul Service (for service discovery)
+apiVersion: v1
+kind: Service
+metadata:
+  name: consul
+  namespace: gin-demo
+  labels:
+    app: consul
+spec:
+  type: ClusterIP
+  selector:
+    app: consul
+  ports:
+    - name: http
+      port: 8500
+      targetPort: 8500
+      protocol: TCP
+    - name: dns
+      port: 8600
+      targetPort: 8600
+      protocol: TCP
+    - name: server
+      port: 8300
+      targetPort: 8300
+      protocol: TCP
+---
+# Consul Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consul
+  namespace: gin-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consul
+  template:
+    metadata:
+      labels:
+        app: consul
+    spec:
+      containers:
+      - name: consul
+        image: consul:1.15
+        ports:
+        - containerPort: 8500
+          name: http
+        - containerPort: 8600
+          name: dns
+        - containerPort: 8300
+          name: server
+        env:
+        - name: CONSUL_BIND_INTERFACE
+          value: "eth0"
+        command:
+        - "consul"
+        - "agent"
+        - "-server"
+        - "-ui"
+        - "-bootstrap-expect=1"
+        - "-client=0.0.0.0"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"

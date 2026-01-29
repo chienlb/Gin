@@ -37,7 +37,7 @@ func NewServer(cfg *config.Config) *Server {
 
 func (s *Server) Initialize() error {
 	// Initialize database
-	if err := database.Init(s.config.Database.GetDSN()); err != nil {
+	if err := database.Init(s.config.GetDSN()); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 

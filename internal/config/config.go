@@ -9,12 +9,15 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	Kafka    KafkaConfig
-	Logger   LoggerConfig
-	App      AppConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Redis     RedisConfig
+	Kafka     KafkaConfig
+	Storage   StorageConfig
+	Worker    WorkerConfig
+	Discovery DiscoveryConfig
+	Logger    LoggerConfig
+	App       AppConfig
 }
 
 type ServerConfig struct {
@@ -36,6 +39,7 @@ type DatabaseConfig struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
+	ReadReplicas    []string // Read replica URLs
 }
 
 type RedisConfig struct {
@@ -53,6 +57,33 @@ type KafkaConfig struct {
 
 type KafkaTopics struct {
 	UserEvents string
+}
+
+type StorageConfig struct {
+	Type            string // s3 or minio
+	Endpoint        string // For MinIO
+	Region          string
+	AccessKeyID     string
+	SecretAccessKey string
+	Bucket          string
+	UsePathStyle    bool
+	CDNDomain       string // CDN domain for public URLs
+}
+
+type WorkerConfig struct {
+	Enabled     bool
+	WorkerCount int
+	QueueSize   int
+}
+
+type DiscoveryConfig struct {
+	Enabled     bool
+	Type        string // consul or kubernetes
+	ConsulAddr  string
+	ServiceName string
+	ServiceID   string
+	ServicePort int
+	Tags        []string
 }
 
 type LoggerConfig struct {
@@ -86,6 +117,7 @@ func Load() *Config {
 			MaxOpenConns:    getEnvInt("DB_MAX_OPEN_CONNS", 25),
 			MaxIdleConns:    getEnvInt("DB_MAX_IDLE_CONNS", 5),
 			ConnMaxLifetime: getEnvDuration("DB_CONN_MAX_LIFETIME", 5*time.Minute),
+			ReadReplicas:    getEnvSlice("DB_READ_REPLICAS", []string{}),
 		},
 		Redis: RedisConfig{
 			Host:     getEnv("REDIS_HOST", "localhost"),
@@ -100,6 +132,30 @@ func Load() *Config {
 				UserEvents: getEnv("KAFKA_TOPIC_USER_EVENTS", "user-events"),
 			},
 		},
+		Storage: StorageConfig{
+			Type:            getEnv("STORAGE_TYPE", "s3"),
+			Endpoint:        getEnv("STORAGE_ENDPOINT", ""),
+			Region:          getEnv("STORAGE_REGION", "us-east-1"),
+			AccessKeyID:     getEnv("STORAGE_ACCESS_KEY_ID", ""),
+			SecretAccessKey: getEnv("STORAGE_SECRET_ACCESS_KEY", ""),
+			Bucket:          getEnv("STORAGE_BUCKET", "gin-demo-uploads"),
+			UsePathStyle:    getEnvBool("STORAGE_USE_PATH_STYLE", false),
+			CDNDomain:       getEnv("STORAGE_CDN_DOMAIN", ""),
+		},
+		Worker: WorkerConfig{
+			Enabled:     getEnvBool("WORKER_ENABLED", false),
+			WorkerCount: getEnvInt("WORKER_COUNT", 5),
+			QueueSize:   getEnvInt("WORKER_QUEUE_SIZE", 100),
+		},
+		Discovery: DiscoveryConfig{
+			Enabled:     getEnvBool("DISCOVERY_ENABLED", false),
+			Type:        getEnv("DISCOVERY_TYPE", "kubernetes"),
+			ConsulAddr:  getEnv("CONSUL_ADDR", "localhost:8500"),
+			ServiceName: getEnv("SERVICE_NAME", "gin-demo-api"),
+			ServiceID:   getEnv("SERVICE_ID", "gin-demo-api-1"),
+			ServicePort: getEnvInt("SERVICE_PORT", 8080),
+			Tags:        getEnvSlice("SERVICE_TAGS", []string{"api", "v1"}),
+		},
 		Logger: LoggerConfig{
 			Level: getEnv("LOG_LEVEL", "info"),
 		},
@@ -108,23 +164,6 @@ func Load() *Config {
 			Version: "1.0.0",
 		},
 	}
-}
-
-func (c *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
-}
-
-func (c *RedisConfig) GetAddr() string {
-	return fmt.Sprintf("%s:%s", c.Host, c.Port)
-}
-
-func (c *Config) IsProduction() bool {
-	return c.Server.Environment == "production"
-}
-
-func (c *Config) IsDevelopment() bool {
-	return c.Server.Environment == "development"
 }
 
 func getEnv(key, defaultValue string) string {
@@ -155,6 +194,15 @@ func getEnvInt(key string, defaultValue int) int {
 	return intVal
 }
 
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if boolValue, err := strconv.ParseBool(value); err == nil {
+			return boolValue
+		}
+	}
+	return defaultValue
+}
+
 func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 	value := os.Getenv(key)
 	if value == "" {
@@ -165,4 +213,40 @@ func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 		return defaultValue
 	}
 	return duration
+}
+
+func (c *Config) GetDSN() string {
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		c.Database.Host,
+		c.Database.Port,
+		c.Database.User,
+		c.Database.Password,
+		c.Database.DBName,
+		c.Database.SSLMode,
+	)
+}
+
+func (c *Config) GetRedisAddr() string {
+	return fmt.Sprintf("%s:%s", c.Redis.Host, c.Redis.Port)
+}
+
+func (c *Config) Validate() error {
+	if c.Server.Port == "" {
+		return fmt.Errorf("server port is required")
+	}
+	if c.Database.Host == "" {
+		return fmt.Errorf("database host is required")
+	}
+	if c.Storage.Type != "" && c.Storage.Type != "s3" && c.Storage.Type != "minio" {
+		return fmt.Errorf("invalid storage type: %s (must be s3 or minio)", c.Storage.Type)
+	}
+	return nil
+}
+
+func (c *Config) IsProduction() bool {
+	return c.Server.Environment == "production"
+}
+
+func (c *Config) IsDevelopment() bool {
+	return c.Server.Environment == "development"
 }

@@ -17,7 +17,7 @@ func main() {
 
 	// Initialize Redis
 	redisClient, err := cache.NewRedisClient(
-		cfg.Redis.GetAddr(),
+		cfg.GetRedisAddr(),
 		cfg.Redis.Password,
 		cfg.Redis.DB,
 	)

@@ -1,0 +1,153 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: user-cleanup-job
+  namespace: gin-demo
+spec:
+  schedule: "0 2 * * *"  # Run daily at 2 AM
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: user-cleanup
+            image: gin-demo-api:latest
+            command:
+            - /app/bin/worker
+            - --job=user-cleanup
+            env:
+            - name: DATABASE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: gin-demo-config
+                  key: database.host
+            - name: DATABASE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: gin-demo-config
+                  key: database.port
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gin-demo-secrets
+                  key: database.username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gin-demo-secrets
+                  key: database.password
+            - name: DATABASE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: gin-demo-config
+                  key: database.name
+          restartPolicy: OnFailure
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: database-backup-job
+  namespace: gin-demo
+spec:
+  schedule: "0 3 * * *"  # Run daily at 3 AM
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: gin-demo-api:latest
+            command:
+            - /app/scripts/backup-db.sh
+            env:
+            - name: DATABASE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: gin-demo-config
+                  key: database.host
+            - name: DATABASE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: gin-demo-config
+                  key: database.port
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gin-demo-secrets
+                  key: database.username
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gin-demo-secrets
+                  key: database.password
+            - name: DATABASE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: gin-demo-config
+                  key: database.name
+            - name: S3_BUCKET
+              value: "gin-demo-backups"
+            - name: AWS_REGION
+              value: "us-east-1"
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: backup-pvc
+          restartPolicy: OnFailure
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cache-warmup-job
+  namespace: gin-demo
+spec:
+  schedule: "*/30 * * * *"  # Run every 30 minutes
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cache-warmup
+            image: gin-demo-api:latest
+            command:
+            - /app/bin/worker
+            - --job=cache-warmup
+            env:
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: gin-demo-config
+                  key: redis.host
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: gin-demo-config
+                  key: redis.port
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gin-demo-secrets
+                  key: redis.password
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-pvc
+  namespace: gin-demo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard

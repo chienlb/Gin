@@ -3,12 +3,13 @@ package domain
 import "time"
 
 type User struct {
-	ID        int       `gorm:"primaryKey" json:"id"`
-	Name      string    `gorm:"column:name;type:varchar(100)" json:"name"`
-	Email     string    `gorm:"column:email;type:varchar(100);uniqueIndex" json:"email"`
-	Password  string    `gorm:"column:password;type:varchar(255)" json:"-"`
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID        int        `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name      string     `gorm:"column:name;type:varchar(100);not null;index:idx_name" json:"name"`
+	Email     string     `gorm:"column:email;type:varchar(100);uniqueIndex:idx_email;not null" json:"email"`
+	Password  string     `gorm:"column:password;type:varchar(255);not null" json:"-"`
+	CreatedAt time.Time  `gorm:"autoCreateTime;index:idx_created_at" json:"created_at"`
+	UpdatedAt time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+	DeletedAt *time.Time `gorm:"index:idx_deleted_at" json:"-"`
 }
 
 // TableName specifies the table name for User model
