@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
+	Redis    RedisConfig
+	Kafka    KafkaConfig
 	Logger   LoggerConfig
 	App      AppConfig
 }
@@ -33,6 +36,23 @@ type DatabaseConfig struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
+}
+
+type RedisConfig struct {
+	Host     string
+	Port     string
+	Password string
+	DB       int
+}
+
+type KafkaConfig struct {
+	Brokers       []string
+	ConsumerGroup string
+	Topics        KafkaTopics
+}
+
+type KafkaTopics struct {
+	UserEvents string
 }
 
 type LoggerConfig struct {
@@ -67,6 +87,19 @@ func Load() *Config {
 			MaxIdleConns:    getEnvInt("DB_MAX_IDLE_CONNS", 5),
 			ConnMaxLifetime: getEnvDuration("DB_CONN_MAX_LIFETIME", 5*time.Minute),
 		},
+		Redis: RedisConfig{
+			Host:     getEnv("REDIS_HOST", "localhost"),
+			Port:     getEnv("REDIS_PORT", "6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getEnvInt("REDIS_DB", 0),
+		},
+		Kafka: KafkaConfig{
+			Brokers:       getEnvSlice("KAFKA_BROKERS", []string{"localhost:9092"}),
+			ConsumerGroup: getEnv("KAFKA_CONSUMER_GROUP", "gin-api-group"),
+			Topics: KafkaTopics{
+				UserEvents: getEnv("KAFKA_TOPIC_USER_EVENTS", "user-events"),
+			},
+		},
 		Logger: LoggerConfig{
 			Level: getEnv("LOG_LEVEL", "info"),
 		},
@@ -80,6 +113,10 @@ func Load() *Config {
 func (c *DatabaseConfig) GetDSN() string {
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
+}
+
+func (c *RedisConfig) GetAddr() string {
+	return fmt.Sprintf("%s:%s", c.Host, c.Port)
 }
 
 func (c *Config) IsProduction() bool {
@@ -96,6 +133,14 @@ func getEnv(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func getEnvSlice(key string, defaultValue []string) []string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return strings.Split(value, ",")
 }
 
 func getEnvInt(key string, defaultValue int) int {

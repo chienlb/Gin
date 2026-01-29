@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: gin-api
+data:
+  SERVER_HOST: "0.0.0.0"
+  SERVER_PORT: "8080"
+  ENVIRONMENT: "production"
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_USER: "postgres"
+  DB_NAME: "gin_db"
+  DB_SSL_MODE: "disable"
+  DB_MAX_OPEN_CONNS: "25"
+  DB_MAX_IDLE_CONNS: "5"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  KAFKA_BROKERS: "kafka-service:9092"
+  KAFKA_CONSUMER_GROUP: "gin-api-group"
+  KAFKA_TOPIC_USER_EVENTS: "user-events"
+  LOG_LEVEL: "info"
