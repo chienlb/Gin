@@ -1,0 +1,33 @@
+aws_region     = "us-east-1"
+environment    = "production"
+project_name   = "gin-api"
+api_stage_name = "prod"
+
+# Database Configuration
+db_instance_class = "db.t3.micro"
+db_name           = "gin_db"
+db_username       = "postgres"
+db_password       = "ChangeThisSecurePassword123!"
+
+# Redis Configuration
+redis_node_type = "cache.t3.micro"
+
+# ECS Configuration
+ecs_task_cpu      = 256
+ecs_task_memory   = 512
+ecs_desired_count = 2
+
+# API Gateway Configuration
+enable_api_gateway       = true
+enable_waf               = true
+api_throttle_rate_limit  = 1000
+api_throttle_burst_limit = 2000
+
+# Optional: Custom Domain Configuration
+# Uncomment and configure if you have a custom domain
+# domain_name     = "api.example.com"
+# certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/your-certificate-id"
+
+# VPC Configuration
+vpc_cidr           = "10.0.0.0/16"
+availability_zones = ["us-east-1a", "us-east-1b"]
